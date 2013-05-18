@@ -134,7 +134,7 @@ int bfc_compile(FILE *ifp){
             break;
         case ',':
             addlen = sizeof(Native_call);
-            memcpy(addbuf, Native_call, addlen);        // call putchar
+            memcpy(addbuf, Native_call, addlen);        // call getchar
             *(DWORD *)&(addbuf[pos_call_ptr]) = pos_getchar - (hdrcodesize + pos + addlen);
             break;
         case '[':
@@ -232,7 +232,9 @@ int bfc_ouptput_exe(FILE *ofp){
             strcpy(&(HintTable[htpos]) + 2, import_hint[j]);
 
             DWORD IATAddr = EXE_IMAGE_BASE + pos_LookupTable + sizeof(DWORD) * index_LookupTable + size_LookupTable;
+#ifdef _DEBUG
             printf("%s:%s IAT = 0x%08x\n", ImportDllInfo[i].dllname, import_hint[j], IATAddr);
+#endif
             std::string procname = ImportDllInfo[i].dllname;
             procname += ":"; procname += import_hint[j];
             IAT.insert(make_pair(procname, IATAddr));
