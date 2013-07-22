@@ -1,12 +1,14 @@
 #bfc
 ---
-brainf*ck‚ÌƒRƒ“ƒpƒCƒ‰‚Å‚·B  
-x86/win32‚ÌƒlƒCƒeƒBƒuƒoƒCƒiƒŠ‚ðo—Í‚·‚é‚Å‚·B
+brainf*ckã®ã‚³ãƒ³ãƒ‘ã‚¤ãƒ©ã§ã™ã€‚  
+x86/win32ã®ãƒã‚¤ãƒ†ã‚£ãƒ–ãƒã‚¤ãƒŠãƒªã‚’å‡ºåŠ›ã™ã‚‹ã§ã™ã€‚
 
 > bfc.exe xxx.bf
 
-‚Å xxx.exe ‚ª¶¬‚³‚ê‚é‚Å‚·B
+ã§ xxx.exe ãŒç”Ÿæˆã•ã‚Œã‚‹ã§ã™ã€‚
 
 ---
-ŽQl: https://ja.wikipedia.org/wiki/Brainfuck
+å‚è€ƒ: https://ja.wikipedia.org/wiki/Brainfuck
 
+========
+brainf*ck compiler
