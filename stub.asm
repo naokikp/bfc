@@ -22,12 +22,17 @@ _start:
 getchar:				; command ','
 	; ReadFile(hStdIn, buf, 1, 0, 0)
 	push edi
+retry:
 	push 0
-	push dword len
+	push dword len		; [out]
 	push 1
 	push edi
 	push dword [stdin]
 	call dword [dummy]	; relocate, kernel32.dll:ReadFile
+
+	cmp byte [edi],0x0d
+	jz near retry
+
 	pop edi
 	ret
 
@@ -35,7 +40,7 @@ putchar:				; command '.'
 	; WriteFile(hStdOut, buf, 1, 0, 0)
 	push edi
 	push 0
-	push dword len
+	push dword len		; [out]
 	push 1
 	push edi
 	push dword [stdout]
@@ -85,5 +90,8 @@ jumpzero:				; command '['
 jump:
 	jmp near dummy2
 
-
 dummy2:
+
+dd 0x99999999
+db getchar - 0x401000
+db putchar - 0x401000

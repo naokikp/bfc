@@ -21,28 +21,29 @@
 
 // ネイティブコード
 BYTE NativeBuffer[] = {
-    0x6A,0xF6,0xFF,0x15,0x82,0x10,0x40,0x00,0xA3,0x61,0x10,0x40,0x00,0x6A,0xF5,0xFF,
-    0x15,0x82,0x10,0x40,0x00,0xA3,0x65,0x10,0x40,0x00,0xBF,0x00,0x30,0x40,0x00,0xE8,
-    0x49,0x00,0x00,0x00,0xEB,0x32,0x57,0x6A,0x00,0x68,0x69,0x10,0x40,0x00,0x6A,0x01,
-    0x57,0xFF,0x35,0x61,0x10,0x40,0x00,0xFF,0x15,0x82,0x10,0x40,0x00,0x5F,0xC3,0x57,
-    0x6A,0x00,0x68,0x69,0x10,0x40,0x00,0x6A,0x01,0x57,0xFF,0x35,0x65,0x10,0x40,0x00,
-    0xFF,0x15,0x82,0x10,0x40,0x00,0x5F,0xC3,0x6A,0x00,0xFF,0x15,0x82,0x10,0x40,0x00,
-    0xC3,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x6A,0xF6,0xFF,0x15,0x77,0x10,0x40,0x00,0xA3,0x6A,0x10,0x40,0x00,0x6A,0xF5,0xFF,
+    0x15,0x77,0x10,0x40,0x00,0xA3,0x6E,0x10,0x40,0x00,0xBF,0x00,0x30,0x40,0x00,0xE8,
+    0x52,0x00,0x00,0x00,0xEB,0x3B,0x57,0x6A,0x00,0x68,0x72,0x10,0x40,0x00,0x6A,0x01,
+    0x57,0xFF,0x35,0x6A,0x10,0x40,0x00,0xFF,0x15,0x77,0x10,0x40,0x00,0x80,0x3F,0x0D,
+    0x0F,0x84,0xE1,0xFF,0xFF,0xFF,0x5F,0xC3,0x57,0x6A,0x00,0x68,0x72,0x10,0x40,0x00,
+    0x6A,0x01,0x57,0xFF,0x35,0x6E,0x10,0x40,0x00,0xFF,0x15,0x77,0x10,0x40,0x00,0x5F,
+    0xC3,0x6A,0x00,0xFF,0x15,0x77,0x10,0x40,0x00,0xC3,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00,0x00,0x00,
 };
+const int pos_getchar = 0x26;
+const int pos_putchar = 0x48;
 
 struct _RelocationTable {
     unsigned int offset;
     const char *procname;
 } RelocationTable[] = {
-    { 0x04, "kernel32.dll:GetStdHandle" },
-    { 0x11, "kernel32.dll:GetStdHandle" },
-    { 0x39, "kernel32.dll:ReadFile" },
-    { 0x52, "kernel32.dll:WriteFile" },
-    { 0x5c, "kernel32.dll:ExitProcess" },
+    { 0x0004, "kernel32.dll:GetStdHandle" },
+    { 0x0011, "kernel32.dll:GetStdHandle" },
+    { 0x0039, "kernel32.dll:ReadFile" },
+    { 0x005b, "kernel32.dll:WriteFile" },
+    { 0x0065, "kernel32.dll:ExitProcess" },
 };
 
-const int pos_getchar = 0x26;
-const int pos_putchar = 0x3f;
 BYTE Native_incptr[]        = { 0x47 };
 BYTE Native_decptr[]        = { 0x4f };
 BYTE Native_incptrind[]     = { 0xfe, 0x07 };
@@ -74,7 +75,7 @@ const char *ImportDLL_kernel32[] = {
     NULL,   // Terminater
 };
 struct IMPORT_DLL_INFO ImportDllInfo[] = {
-    { "user32.dll",     ImportDLL_user32 },
+//    { "user32.dll",     ImportDLL_user32 },
     { "kernel32.dll",   ImportDLL_kernel32 },
 };
 
@@ -186,6 +187,10 @@ int bfc_ouptput_exe(FILE *ofp){
     int pos_codesec_file  = align(HEADER_SIZE, FILEALIGNSIZE);
     int pos_imptsec_file  = pos_codesec_file + size_codesec_file;
 
+    if(sizeof(InitBuffer) == 1 && InitBuffer[0] == 0){
+        size_datasec_file = 0;
+    }
+
     int Import_DLL_Num = sizeof(ImportDllInfo) / sizeof(ImportDllInfo[0]);
     int Import_Proc_Num = 0;
     for(int i = 0; i < Import_DLL_Num; i++){
@@ -257,24 +262,28 @@ int bfc_ouptput_exe(FILE *ofp){
 
     int size_imptsec_file = align(size_imptsec_raw, FILEALIGNSIZE);;
     int pos_datasec_file  = pos_imptsec_file + size_imptsec_file;
+    if(size_datasec_file == 0){
+        pos_datasec_file = 0;
+    }
 
     IMAGE_DOS_HEADER ImageDosHeader;
     memset(&ImageDosHeader, 0, sizeof(ImageDosHeader));
     ImageDosHeader.e_magic      = 0x5A4D;
-    ImageDosHeader.e_cblp       = 0x0090;
-    ImageDosHeader.e_cp         = 0x0003;
+    ImageDosHeader.e_cblp       = 0x0040;
+    ImageDosHeader.e_cp         = 0x0001;
     ImageDosHeader.e_crlc       = 0x0000;
-    ImageDosHeader.e_cparhdr    = 0x0004;
+    ImageDosHeader.e_cparhdr    = 0x0002;
     ImageDosHeader.e_minalloc   = 0x0000;
     ImageDosHeader.e_maxalloc   = 0xFFFF;
     ImageDosHeader.e_ss         = 0x0000;
-    ImageDosHeader.e_sp         = 0x00B8;
+    ImageDosHeader.e_sp         = 0x0000;
     ImageDosHeader.e_csum       = 0x0000;
     ImageDosHeader.e_ip         = 0x0000;
     ImageDosHeader.e_cs         = 0x0000;
-    ImageDosHeader.e_lfarlc     = 0x0040;
+    ImageDosHeader.e_lfarlc     = 0x0000;
     ImageDosHeader.e_ovno       = 0x0000;
-    ImageDosHeader.e_lfanew     = sizeof(ImageDosHeader) + sizeof(DosCodeBuffer);
+    ImageDosHeader.e_lfanew     = sizeof(ImageDosHeader);
+    memcpy(((char*)&ImageDosHeader) + 0x0020 + ImageDosHeader.e_ip, DosCodeBuffer, sizeof(DosCodeBuffer));
 
     IMAGE_NT_HEADERS ImagePeHeader;
     memset(&ImagePeHeader, 0, sizeof(ImagePeHeader));
@@ -293,8 +302,8 @@ int bfc_ouptput_exe(FILE *ofp){
     ImagePeHeader.OptionalHeader.Magic                          = 0x010B;
     ImagePeHeader.OptionalHeader.MajorLinkerVersion             = 1;
     ImagePeHeader.OptionalHeader.MinorLinkerVersion             = 0;
-    ImagePeHeader.OptionalHeader.SizeOfCode                     = sizeof(NativeBuffer) + BFCode.size();
-    ImagePeHeader.OptionalHeader.SizeOfInitializedData          = sizeof(InitBuffer);
+    ImagePeHeader.OptionalHeader.SizeOfCode                     = align(sizeof(NativeBuffer) + BFCode.size(), ALIGNSIZE);
+    ImagePeHeader.OptionalHeader.SizeOfInitializedData          = align(DATA_SEC_SIZE, ALIGNSIZE) + size_imptsec;
     ImagePeHeader.OptionalHeader.SizeOfUninitializedData        = 0;
     ImagePeHeader.OptionalHeader.AddressOfEntryPoint            = pos_codesec;
     ImagePeHeader.OptionalHeader.BaseOfCode                     = pos_codesec;
@@ -335,7 +344,8 @@ int bfc_ouptput_exe(FILE *ofp){
     strcpy((char *)CodeSectionHeader.Name, ".text");
     CodeSectionHeader.Misc.VirtualSize      = size_codesec;                         // メモリ上のサイズ
     CodeSectionHeader.VirtualAddress        = pos_codesec;                          // メモリ上の開始アドレス
-    CodeSectionHeader.SizeOfRawData         = sizeof(NativeBuffer) + BFCode.size(); // ファイル上のサイズ
+    CodeSectionHeader.SizeOfRawData         = align(sizeof(NativeBuffer) + BFCode.size(), FILEALIGNSIZE);
+                                                                                    // ファイル上のサイズ
     CodeSectionHeader.PointerToRawData      = pos_codesec_file;                     // ファイル上の開始アドレス
     CodeSectionHeader.PointerToRelocations  = 0;
     CodeSectionHeader.PointerToLinenumbers  = 0;
@@ -349,7 +359,7 @@ int bfc_ouptput_exe(FILE *ofp){
     strcpy((char *)ImptSectionHeader.Name, ".idata");
     ImptSectionHeader.Misc.VirtualSize      = size_imptsec;
     ImptSectionHeader.VirtualAddress        = pos_imptsec;
-    ImptSectionHeader.SizeOfRawData         = size_imptsec_raw;
+    ImptSectionHeader.SizeOfRawData         = size_imptsec_file;
     ImptSectionHeader.PointerToRawData      = pos_imptsec_file;
     ImptSectionHeader.PointerToRelocations  = 0;
     ImptSectionHeader.PointerToLinenumbers  = 0;
@@ -363,7 +373,7 @@ int bfc_ouptput_exe(FILE *ofp){
     strcpy((char *)DataSectionHeader.Name, ".sdata");
     DataSectionHeader.Misc.VirtualSize      = DATA_SEC_SIZE;
     DataSectionHeader.VirtualAddress        = pos_datasec;
-    DataSectionHeader.SizeOfRawData         = sizeof(InitBuffer);
+    DataSectionHeader.SizeOfRawData         = size_datasec_file;
     DataSectionHeader.PointerToRawData      = pos_datasec_file;
     DataSectionHeader.PointerToRelocations  = 0;
     DataSectionHeader.PointerToLinenumbers  = 0;
@@ -374,7 +384,7 @@ int bfc_ouptput_exe(FILE *ofp){
     int ofs = 0;
     // DOS Header
     ofs += fwrite(&ImageDosHeader,      1, sizeof(ImageDosHeader), ofp);
-    ofs += fwrite(&DosCodeBuffer,       1, sizeof(DosCodeBuffer), ofp);
+//  ofs += fwrite(&DosCodeBuffer,       1, sizeof(DosCodeBuffer), ofp);
     ofs += fwrite(NullBuffer,           1, ImageDosHeader.e_lfanew - ofs, ofp);
     // PE Header
     ofs += fwrite(&ImagePeHeader,       1, sizeof(ImagePeHeader), ofp);
@@ -398,8 +408,10 @@ int bfc_ouptput_exe(FILE *ofp){
     ofs += fwrite(NullBuffer,           1, align(ofs, FILEALIGNSIZE) - ofs, ofp);
 
     // Data Section
-    ofs += fwrite(InitBuffer,           1, sizeof(InitBuffer), ofp);
-    ofs += fwrite(NullBuffer,           1, align(ofs, FILEALIGNSIZE) - ofs, ofp);
+    if(size_datasec_file){
+        ofs += fwrite(InitBuffer,           1, sizeof(InitBuffer), ofp);
+        ofs += fwrite(NullBuffer,           1, align(ofs, FILEALIGNSIZE) - ofs, ofp);
+    }
 
     return 0;
 }
