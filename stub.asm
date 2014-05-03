@@ -5,47 +5,58 @@ BITS 32
 org 0x401000
 
 _start:
+	lea ebx, [data]		; relocate, .data
 	; GetStdHandle(STD_INPUT_HANDLE)
 	push -0x0a
 	call dword [dummy]	; relocate, kernel32.dll:GetStdHandle
-	mov [stdin], eax
+	mov [ebx], eax
 
 	; GetStdHandle(STD_OUTPUT_HANDLE)
 	push -0x0b
 	call dword [dummy]	; relocate, kernel32.dll:GetStdHandle
-	mov [stdout], eax
-	mov edi, 0x403000
+	mov [ebx+4], eax
+
+	; VirtualAlloc(NULL, 0x10000, MEM_COMMIT | MEM_TOP_DOWN, PAGE_READWRITE);
+	push 0x04				; flProtect
+	push 0x1000 | 0x100000	; flAllocationType
+	push 0x10000			; dwSize
+	push 0					; lpAddress
+	call dword [dummy]	; relocate, kernel32.dll:VirtualAlloc
+	mov edi, eax
+
 	; brainf*ck code start
 	call main
 	jmp exit
 
 getchar:				; command ','
 	; ReadFile(hStdIn, buf, 1, 0, 0)
-	push edi
 retry:
-	push 0
-	push dword len		; [out]
-	push 1
-	push edi
-	push dword [stdin]
+	push 0				; lpOverlapped
+	lea ebx, [data]		; relocate, .data
+	lea ecx, [ebx+8]
+	push ecx			; lpNumberOfBytesRead
+	push 1				; nNumberOfBytesToRead
+	push edi			; lpBuffer
+	push dword [ebx]	; hFile
 	call dword [dummy]	; relocate, kernel32.dll:ReadFile
 
 	cmp byte [edi],0x0d
 	jz near retry
 
-	pop edi
 	ret
 
 putchar:				; command '.'
 	; WriteFile(hStdOut, buf, 1, 0, 0)
-	push edi
-	push 0
-	push dword len		; [out]
-	push 1
-	push edi
-	push dword [stdout]
+
+	push 0				; lpOverlapped
+	lea ebx, [data]		; relocate, .data
+	lea ecx, [ebx+8]
+	push ecx			; lpNumberOfBytesWritten
+	push 1				; nNumberOfBytesToWrite
+	push edi			; lpBuffer
+	push dword [ebx+4]	; hFile
 	call dword [dummy]	; relocate, kernel32.dll:WriteFile
-	pop edi
+
 	ret
 
 exit:
@@ -54,44 +65,16 @@ exit:
 	call dword [dummy]	; relocate, kernel32.dll:ExitProcess
 	ret
 
-stdin:
-	dd	0
-stdout:
-	dd	0
-len:
-	dd	0
-
 main:
 	ret
+
+data:	; data section
 dummy:
 	dd 0x90909090
+;	dd	0	; stdin handle
+;	dd	0	; stdout handle
+;	dd	0	; r/w length
 
-incptr:					; command '>'
-	inc edi
-	nop
-decptr:					; command '<'
-	dec edi
-	nop
-incptrind:				; command '+'
-	inc byte [edi]
-	nop
-decptrind:				; command '-'
-	dec byte [edi]
-	nop
-_putchar:				; command '.'
-	call putchar
-	nop
-_getchar:				; command ','
-	call getchar
-	nop
-jumpzero:				; command '['
-	cmp byte [edi],0
-	jz near dummy2
-jump:
-	jmp near dummy2
 
-dummy2:
-
-dd 0x99999999
-db getchar - 0x401000
-db putchar - 0x401000
+dd getchar - 0x401000
+dd putchar - 0x401000

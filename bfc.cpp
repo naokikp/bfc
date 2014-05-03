@@ -16,45 +16,54 @@
 #define ALIGNSIZE       0x1000
 #define FILEALIGNSIZE   0x0200
 #define HEADER_SIZE     0x0200
-#define DATA_SEC_SIZE   0x00010000
+#define DATA_SEC_SIZE   0x0000000c
 #define LOOPSTACK_MAX   128
+#define OPTIMIZE        1
 
 // ネイティブコード
 BYTE NativeBuffer[] = {
-    0x6A,0xF6,0xFF,0x15,0x77,0x10,0x40,0x00,0xA3,0x6A,0x10,0x40,0x00,0x6A,0xF5,0xFF,
-    0x15,0x77,0x10,0x40,0x00,0xA3,0x6E,0x10,0x40,0x00,0xBF,0x00,0x30,0x40,0x00,0xE8,
-    0x52,0x00,0x00,0x00,0xEB,0x3B,0x57,0x6A,0x00,0x68,0x72,0x10,0x40,0x00,0x6A,0x01,
-    0x57,0xFF,0x35,0x6A,0x10,0x40,0x00,0xFF,0x15,0x77,0x10,0x40,0x00,0x80,0x3F,0x0D,
-    0x0F,0x84,0xE1,0xFF,0xFF,0xFF,0x5F,0xC3,0x57,0x6A,0x00,0x68,0x72,0x10,0x40,0x00,
-    0x6A,0x01,0x57,0xFF,0x35,0x6E,0x10,0x40,0x00,0xFF,0x15,0x77,0x10,0x40,0x00,0x5F,
-    0xC3,0x6A,0x00,0xFF,0x15,0x77,0x10,0x40,0x00,0xC3,0x00,0x00,0x00,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00,0x00,0x00,
+    0x8D,0x1D,0x7C,0x10,0x40,0x00,0x6A,0xF6,0xFF,0x15,0x7C,0x10,0x40,0x00,0x89,0x03,
+    0x6A,0xF5,0xFF,0x15,0x7C,0x10,0x40,0x00,0x89,0x43,0x04,0x6A,0x04,0x68,0x00,0x10,
+    0x10,0x00,0x68,0x00,0x00,0x01,0x00,0x6A,0x00,0xFF,0x15,0x7C,0x10,0x40,0x00,0x89,
+    0xC7,0xE8,0x45,0x00,0x00,0x00,0xEB,0x3A,0x6A,0x00,0x8D,0x1D,0x7C,0x10,0x40,0x00,
+    0x8D,0x4B,0x08,0x51,0x6A,0x01,0x57,0xFF,0x33,0xFF,0x15,0x7C,0x10,0x40,0x00,0x80,
+    0x3F,0x0D,0x0F,0x84,0xE0,0xFF,0xFF,0xFF,0xC3,0x6A,0x00,0x8D,0x1D,0x7C,0x10,0x40,
+    0x00,0x8D,0x4B,0x08,0x51,0x6A,0x01,0x57,0xFF,0x73,0x04,0xFF,0x15,0x7C,0x10,0x40,
+    0x00,0xC3,0x6A,0x00,0xFF,0x15,0x7C,0x10,0x40,0x00,0xC3,
 };
-const int pos_getchar = 0x26;
-const int pos_putchar = 0x48;
+const int pos_getchar = 0x38;
+const int pos_putchar = 0x59;
 
 struct _RelocationTable {
     unsigned int offset;
     const char *procname;
 } RelocationTable[] = {
-    { 0x0004, "kernel32.dll:GetStdHandle" },
-    { 0x0011, "kernel32.dll:GetStdHandle" },
-    { 0x0039, "kernel32.dll:ReadFile" },
-    { 0x005b, "kernel32.dll:WriteFile" },
-    { 0x0065, "kernel32.dll:ExitProcess" },
+    { 0x0002, ".data" },
+    { 0x000a, "kernel32.dll:GetStdHandle" },
+    { 0x0014, "kernel32.dll:GetStdHandle" },
+    { 0x002b, "kernel32.dll:VirtualAlloc" },
+    { 0x003c, ".data" },
+    { 0x004b, "kernel32.dll:ReadFile" },
+    { 0x005d, ".data" },
+    { 0x006d, "kernel32.dll:WriteFile" },
+    { 0x0076, "kernel32.dll:ExitProcess" },
 };
 
 BYTE Native_incptr[]        = { 0x47 };
 BYTE Native_decptr[]        = { 0x4f };
 BYTE Native_incptrind[]     = { 0xfe, 0x07 };
 BYTE Native_decptrind[]     = { 0xfe, 0x0f };
+BYTE Native_incptr_mul[]    = { 0x83, 0xc7, 0xcc };
+BYTE Native_decptr_mul[]    = { 0x83, 0xef, 0xcc };
+BYTE Native_incptrind_mul[] = { 0x80, 0x07, 0xcc };
+BYTE Native_decptrind_mul[] = { 0x80, 0x2f, 0xcc };
 BYTE Native_call[]          = { 0xe8, 0xcc, 0xcc, 0xcc, 0xcc };
 BYTE Native_cmpjmp[]        = { 0x80, 0x3f, 0x00, 0x0f, 0x84, 0xcc, 0xcc, 0xcc, 0xcc };
 BYTE Native_jmp[]           = { 0xe9, 0xcc, 0xcc, 0xcc, 0xcc };
+const int pos_mul_ptr       = 2;
 const int pos_call_ptr      = 1;
 const int pos_cmpjmp_ptr    = 5;
 const int pos_jmp_ptr       = 1;
-
 
 std::vector<BYTE> BFCode;
 
@@ -72,10 +81,11 @@ const char *ImportDLL_kernel32[] = {
     "ReadFile",
     "WriteFile",
     "ExitProcess",
+    "VirtualAlloc",
     NULL,   // Terminater
 };
 struct IMPORT_DLL_INFO ImportDllInfo[] = {
-//    { "user32.dll",     ImportDLL_user32 },
+    { "user32.dll",     ImportDLL_user32 },
     { "kernel32.dll",   ImportDLL_kernel32 },
 };
 
@@ -84,7 +94,6 @@ struct IMPORT_DLL_INFO ImportDllInfo[] = {
 BYTE InitBuffer[] = "";
 
 std::map<std::string, DWORD> IAT;
-char NullBuffer[ALIGNSIZE];
 
 BYTE DosCodeBuffer[16] = {
     0xb8, 0x01, 0x4c,   // mov ax, 4c01
@@ -93,91 +102,177 @@ BYTE DosCodeBuffer[16] = {
 
 int align(int n, int m){ return (n + m - 1) / m * m; }
 
+struct loopstack{
+    int pos;
+    int nextpos;
+    int relpos;
+} stack[LOOPSTACK_MAX];
+int stackpos = 0;
+int hdrcodesize = sizeof(NativeBuffer);
+
+int setnative(int ch, BYTE *addbuf, int filepos, int pos, int param){
+    int addlen = 0;
+
+#ifdef _DEBUG
+    printf("pos = %3d, filepos = %3d : ", pos, filepos);
+    if(ch == EOF) printf("EOF\n"); else printf("'%c' %d\n",  ch, param);
+#endif
+
+    switch(ch){
+    case '>':
+        if(param > 1){
+            addlen = sizeof(Native_incptr_mul);
+            memcpy(addbuf, Native_incptr_mul, addlen);      // add edi, xx
+            *(char *)&(addbuf[pos_mul_ptr]) = param;
+            break;
+        }
+        addlen = sizeof(Native_incptr);
+        memcpy(addbuf, Native_incptr, addlen);      // inc edi
+        break;
+    case '<':
+        if(param > 1){
+            addlen = sizeof(Native_decptr_mul);
+            memcpy(addbuf, Native_decptr_mul, addlen);      // sub edi, xx
+            *(char *)&(addbuf[pos_mul_ptr]) = param;
+            break;
+        }
+        addlen = sizeof(Native_decptr);
+        memcpy(addbuf, Native_decptr, addlen);      // inc edi
+        break;
+    case '+':
+        if(param > 1){
+            addlen = sizeof(Native_incptrind_mul);
+            memcpy(addbuf, Native_incptrind_mul, addlen);   // add byte [edi], xx
+            *(char *)&(addbuf[pos_mul_ptr]) = param;
+            break;
+        }
+        addlen = sizeof(Native_incptrind);
+        memcpy(addbuf, Native_incptrind, addlen);   // inc byte ptr [edi]
+        break;
+    case '-':
+        if(param > 1){
+            addlen = sizeof(Native_decptrind_mul);
+            memcpy(addbuf, Native_decptrind_mul, addlen);   // sub byte [edi], xx
+            *(char *)&(addbuf[pos_mul_ptr]) = param;
+            break;
+        }
+        addlen = sizeof(Native_decptrind);
+        memcpy(addbuf, Native_decptrind, addlen);   // inc byte ptr [edi]
+        break;
+
+    case '.':
+        addlen = sizeof(Native_call);
+        memcpy(addbuf, Native_call, addlen);        // call putchar
+        *(DWORD *)&(addbuf[pos_call_ptr]) = pos_putchar - (hdrcodesize + pos + addlen);
+        break;
+    case ',':
+        addlen = sizeof(Native_call);
+        memcpy(addbuf, Native_call, addlen);        // call getchar
+        *(DWORD *)&(addbuf[pos_call_ptr]) = pos_getchar - (hdrcodesize + pos + addlen);
+        break;
+    case '[':
+        addlen = sizeof(Native_cmpjmp);
+        memcpy(addbuf, Native_cmpjmp, addlen);      // cmp byte ptr[edi],0; jz xxx
+        stack[stackpos].pos = pos;
+        stack[stackpos].nextpos = pos + addlen;
+        stack[stackpos].relpos = pos + pos_cmpjmp_ptr;
+        stackpos++;
+        break;
+    case ']':
+        addlen = sizeof(Native_jmp);
+        memcpy(addbuf, Native_jmp, addlen);        // jmp xxx
+        if(stackpos > 0){
+            stackpos--;
+            *(DWORD *)&(BFCode[stack[stackpos].relpos]) = (pos + addlen) - stack[stackpos].nextpos;
+            *(DWORD *)&(addbuf[pos_jmp_ptr]) = stack[stackpos].pos - (pos + addlen);
+        } else {
+            printf("対応する'['がありません。 filepos = %d\n", filepos);
+            exit(1);
+        }
+        break;
+
+    case EOF:
+        addlen = 1;
+        addbuf[0] = 0xc3;   // ret
+        break;
+    }
+    return addlen;
+}
+
+bool checkch(int ch){
+    switch(ch){
+    case '>': case '<': case '+': case '-':
+    case '.': case ',': case '[': case ']':
+    case EOF:
+        return true;
+    }
+    return false;
+}
 
 int bfc_compile(FILE *ifp){
-    struct loopstack{
-        int pos;
-        int nextpos;
-        int relpos;
-    } stack[LOOPSTACK_MAX];
-    int stackpos = 0;
     int filepos = 0;
-    int hdrcodesize = sizeof(NativeBuffer);
+    int pos = 0;
+#if OPTIMIZE
+    int optch = 0;
+    int optnum = 0;
+#endif
 
     while(1){
         int ch = fgetc(ifp);
-        int pos = BFCode.size();
         BYTE addbuf[16];
         int addlen = 0;
         filepos++;
 
-        switch(ch){
-        case '>':
-            addlen = sizeof(Native_incptr);
-            memcpy(addbuf, Native_incptr, addlen);      // inc edi
-            break;
-        case '<':
-            addlen = sizeof(Native_decptr);
-            memcpy(addbuf, Native_decptr, addlen);      // inc edi
-            break;
-        case '+':
-            addlen = sizeof(Native_incptrind);
-            memcpy(addbuf, Native_incptrind, addlen);   // inc byte ptr [edi]
-            break;
-        case '-':
-            addlen = sizeof(Native_decptrind);
-            memcpy(addbuf, Native_decptrind, addlen);   // inc byte ptr [edi]
-            break;
-        case '.':
-            addlen = sizeof(Native_call);
-            memcpy(addbuf, Native_call, addlen);        // call putchar
-            *(DWORD *)&(addbuf[pos_call_ptr]) = pos_putchar - (hdrcodesize + pos + addlen);
-            break;
-        case ',':
-            addlen = sizeof(Native_call);
-            memcpy(addbuf, Native_call, addlen);        // call getchar
-            *(DWORD *)&(addbuf[pos_call_ptr]) = pos_getchar - (hdrcodesize + pos + addlen);
-            break;
-        case '[':
-            addlen = sizeof(Native_cmpjmp);
-            memcpy(addbuf, Native_cmpjmp, addlen);      // cmp byte ptr[edi],0; jz xxx
-            stack[stackpos].pos = pos;
-            stack[stackpos].nextpos = pos + addlen;
-            stack[stackpos].relpos = pos + pos_cmpjmp_ptr;
-            stackpos++;
-            break;
-        case ']':
-            addlen = sizeof(Native_jmp);
-            memcpy(addbuf, Native_jmp, addlen);        // jmp xxx
-            if(stackpos > 0){
-                stackpos--;
-                *(DWORD *)&(BFCode[stack[stackpos].relpos]) = (pos + addlen) - stack[stackpos].nextpos;
-                *(DWORD *)&(addbuf[pos_jmp_ptr]) = stack[stackpos].pos - (pos + addlen);
+        if(!checkch(ch)) continue;
+
+#if OPTIMIZE
+        if(optch){
+            if(optch != ch || optnum >= 127){
+                addlen = setnative(optch, addbuf, filepos, pos, optnum);
             } else {
-                printf("対応する'['がありません。 filepos = %d\n", filepos);
-                exit(1);
+                optnum++;
+                continue;
             }
-            break;
-
-        case EOF:
-            addlen = 1;
-            addbuf[0] = 0xc3;   // ret
-            break;
-
-        default:
-            break;
-        }
-        if(addlen){
             BFCode.resize(pos + addlen);
             memcpy(&(BFCode[pos]), addbuf, addlen);
+            pos += addlen;
+            optch = 0;
         }
+        if(ch == '>' || ch == '<' || ch == '+' || ch == '-'){
+            optch = ch; optnum = 1; continue;
+        }
+#endif
+        addlen = setnative(ch, addbuf, filepos, pos, 0);
+        if(!addlen) continue;
+
+        BFCode.resize(pos + addlen);
+        memcpy(&(BFCode[pos]), addbuf, addlen);
+        pos += addlen;
         if(ch == EOF) break;
     }
-    return 0;
+    return pos;
 }
 
+size_t fwrite_byte(BYTE byte, size_t size, FILE *fp){
+    std::vector<BYTE> buf(size);
+    memset(buf.data(), byte, size);
+    return fwrite(buf.data(), 1, size, fp);
+}
+
+
 int bfc_ouptput_exe(FILE *ofp){
-    int size_codesec = align(sizeof(NativeBuffer) + BFCode.size(), ALIGNSIZE);
+#ifdef _DEBUG
+    {
+        int size = BFCode.size();
+        if(sizeof(NativeBuffer) + size <= ALIGNSIZE){
+            int addsize = align(sizeof(NativeBuffer) + size, ALIGNSIZE) - sizeof(NativeBuffer) - size;
+            BFCode.resize(BFCode.size() + addsize);
+            memset(BFCode.data() + size, 0xdd, addsize);
+        }
+    }
+#endif
+    int size_codesec_raw = sizeof(NativeBuffer) + BFCode.size();
+    int size_codesec = align(size_codesec_raw, ALIGNSIZE);
     int size_datasec = align(max(sizeof(InitBuffer), DATA_SEC_SIZE), ALIGNSIZE);
     int pos_codesec  = align(HEADER_SIZE, ALIGNSIZE);
     int pos_imptsec  = pos_codesec + size_codesec;
@@ -223,6 +318,7 @@ int bfc_ouptput_exe(FILE *ofp){
         int htpos = HintTable.size();
         HintTable.resize(htpos + strlen(ImportDllInfo[i].dllname) + 1);
         strcpy(&(HintTable[htpos]), ImportDllInfo[i].dllname);
+        if(HintTable.size() % 2) HintTable.resize(HintTable.size()+1);
 
         const char **import_hint = ImportDllInfo[i].import_hint;
         for(int j = 0; ;j++){
@@ -235,6 +331,7 @@ int bfc_ouptput_exe(FILE *ofp){
             HintTable.resize(htpos + 2 + strlen(import_hint[j]) + 1);
             *(WORD*)&(HintTable[htpos]) = 0;
             strcpy(&(HintTable[htpos]) + 2, import_hint[j]);
+            if(HintTable.size() % 2) HintTable.resize(HintTable.size()+1);
 
             DWORD IATAddr = EXE_IMAGE_BASE + pos_LookupTable + sizeof(DWORD) * index_LookupTable + size_LookupTable;
 #ifdef _DEBUG
@@ -248,15 +345,7 @@ int bfc_ouptput_exe(FILE *ofp){
         }
     }
 
-    // リロケーション
-    for(int i = 0; i < sizeof(RelocationTable)/sizeof(RelocationTable[0]); i++){
-        auto it = IAT.find(RelocationTable[i].procname);
-        if(it != IAT.end()){
-            *(DWORD *)(&NativeBuffer[RelocationTable[i].offset]) = it->second;
-        }
-    }
     int size_imptsec_raw = size_ImportDesc + size_LookupTable * 2 + HintTable.size();
-
     int size_imptsec = align(size_imptsec_raw, ALIGNSIZE);
     int pos_datasec  = pos_imptsec + size_imptsec;
 
@@ -264,6 +353,15 @@ int bfc_ouptput_exe(FILE *ofp){
     int pos_datasec_file  = pos_imptsec_file + size_imptsec_file;
     if(size_datasec_file == 0){
         pos_datasec_file = 0;
+    }
+    IAT.insert(make_pair(std::string(".data"), (DWORD)(EXE_IMAGE_BASE + pos_datasec)));
+
+    // リロケーション
+    for(int i = 0; i < sizeof(RelocationTable)/sizeof(RelocationTable[0]); i++){
+        auto it = IAT.find(RelocationTable[i].procname);
+        if(it != IAT.end()){
+            *(DWORD *)(&NativeBuffer[RelocationTable[i].offset]) = it->second;
+        }
     }
 
     IMAGE_DOS_HEADER ImageDosHeader;
@@ -296,18 +394,17 @@ int bfc_ouptput_exe(FILE *ofp){
     ImagePeHeader.FileHeader.NumberOfSymbols        = 0;
     ImagePeHeader.FileHeader.SizeOfOptionalHeader   = sizeof(ImagePeHeader.OptionalHeader);
     ImagePeHeader.FileHeader.Characteristics        =
-        IMAGE_FILE_EXECUTABLE_IMAGE | IMAGE_FILE_32BIT_MACHINE |
-        IMAGE_FILE_LINE_NUMS_STRIPPED | IMAGE_FILE_LOCAL_SYMS_STRIPPED;
+        IMAGE_FILE_EXECUTABLE_IMAGE | IMAGE_FILE_32BIT_MACHINE | IMAGE_FILE_RELOCS_STRIPPED;
 
     ImagePeHeader.OptionalHeader.Magic                          = 0x010B;
-    ImagePeHeader.OptionalHeader.MajorLinkerVersion             = 1;
+    ImagePeHeader.OptionalHeader.MajorLinkerVersion             = 10;
     ImagePeHeader.OptionalHeader.MinorLinkerVersion             = 0;
     ImagePeHeader.OptionalHeader.SizeOfCode                     = align(sizeof(NativeBuffer) + BFCode.size(), ALIGNSIZE);
-    ImagePeHeader.OptionalHeader.SizeOfInitializedData          = align(DATA_SEC_SIZE, ALIGNSIZE) + size_imptsec;
+    ImagePeHeader.OptionalHeader.SizeOfInitializedData          = size_imptsec + size_datasec;
     ImagePeHeader.OptionalHeader.SizeOfUninitializedData        = 0;
     ImagePeHeader.OptionalHeader.AddressOfEntryPoint            = pos_codesec;
     ImagePeHeader.OptionalHeader.BaseOfCode                     = pos_codesec;
-    ImagePeHeader.OptionalHeader.BaseOfData                     = pos_datasec;
+    ImagePeHeader.OptionalHeader.BaseOfData                     = pos_imptsec;
     ImagePeHeader.OptionalHeader.ImageBase                      = EXE_IMAGE_BASE;
     ImagePeHeader.OptionalHeader.SectionAlignment               = ALIGNSIZE;
     ImagePeHeader.OptionalHeader.FileAlignment                  = FILEALIGNSIZE;
@@ -322,7 +419,7 @@ int bfc_ouptput_exe(FILE *ofp){
     ImagePeHeader.OptionalHeader.SizeOfHeaders                  = HEADER_SIZE;
     ImagePeHeader.OptionalHeader.CheckSum                       = 0;
     ImagePeHeader.OptionalHeader.Subsystem                      = IMAGE_SUBSYSTEM_WINDOWS_CUI;
-    ImagePeHeader.OptionalHeader.DllCharacteristics             = 0;
+    ImagePeHeader.OptionalHeader.DllCharacteristics             = IMAGE_DLLCHARACTERISTICS_NX_COMPAT | IMAGE_DLLCHARACTERISTICS_NO_SEH | IMAGE_DLLCHARACTERISTICS_TERMINAL_SERVER_AWARE;
     ImagePeHeader.OptionalHeader.SizeOfStackReserve             = 0x00100000;
     ImagePeHeader.OptionalHeader.SizeOfStackCommit              = 0x00001000;
     ImagePeHeader.OptionalHeader.SizeOfHeapReserve              = 0x00100000;
@@ -333,7 +430,7 @@ int bfc_ouptput_exe(FILE *ofp){
     // データ ディクショナリ //
     //  [1]インポートテーブル
     ImagePeHeader.OptionalHeader.DataDirectory[1].VirtualAddress    = pos_imptsec;
-    ImagePeHeader.OptionalHeader.DataDirectory[1].Size              = size_imptsec;
+    ImagePeHeader.OptionalHeader.DataDirectory[1].Size              = size_imptsec_raw;
     //  [12]インポートアドレステーブル
     ImagePeHeader.OptionalHeader.DataDirectory[12].VirtualAddress   = pos_LookupTable + size_LookupTable;
     ImagePeHeader.OptionalHeader.DataDirectory[12].Size             = size_LookupTable;
@@ -342,7 +439,7 @@ int bfc_ouptput_exe(FILE *ofp){
     IMAGE_SECTION_HEADER CodeSectionHeader;
     memset(&CodeSectionHeader, 0, sizeof(CodeSectionHeader));
     strcpy((char *)CodeSectionHeader.Name, ".text");
-    CodeSectionHeader.Misc.VirtualSize      = size_codesec;                         // メモリ上のサイズ
+    CodeSectionHeader.Misc.VirtualSize      = size_codesec_raw;                     // メモリ上のサイズ
     CodeSectionHeader.VirtualAddress        = pos_codesec;                          // メモリ上の開始アドレス
     CodeSectionHeader.SizeOfRawData         = align(sizeof(NativeBuffer) + BFCode.size(), FILEALIGNSIZE);
                                                                                     // ファイル上のサイズ
@@ -351,13 +448,13 @@ int bfc_ouptput_exe(FILE *ofp){
     CodeSectionHeader.PointerToLinenumbers  = 0;
     CodeSectionHeader.NumberOfRelocations   = 0;
     CodeSectionHeader.NumberOfLinenumbers   = 0;
-    CodeSectionHeader.Characteristics       = IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE | IMAGE_SCN_CNT_CODE;
+    CodeSectionHeader.Characteristics       = IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_MEM_READ | IMAGE_SCN_CNT_CODE;
 
     // インポートセクションヘッダ
     IMAGE_SECTION_HEADER ImptSectionHeader;
     memset(&ImptSectionHeader, 0, sizeof(ImptSectionHeader));
     strcpy((char *)ImptSectionHeader.Name, ".idata");
-    ImptSectionHeader.Misc.VirtualSize      = size_imptsec;
+    ImptSectionHeader.Misc.VirtualSize      = size_imptsec_raw;
     ImptSectionHeader.VirtualAddress        = pos_imptsec;
     ImptSectionHeader.SizeOfRawData         = size_imptsec_file;
     ImptSectionHeader.PointerToRawData      = pos_imptsec_file;
@@ -370,7 +467,7 @@ int bfc_ouptput_exe(FILE *ofp){
     // データセクションヘッダ
     IMAGE_SECTION_HEADER DataSectionHeader;
     memset(&DataSectionHeader, 0, sizeof(DataSectionHeader));
-    strcpy((char *)DataSectionHeader.Name, ".sdata");
+    strcpy((char *)DataSectionHeader.Name, ".data");
     DataSectionHeader.Misc.VirtualSize      = DATA_SEC_SIZE;
     DataSectionHeader.VirtualAddress        = pos_datasec;
     DataSectionHeader.SizeOfRawData         = size_datasec_file;
@@ -385,32 +482,32 @@ int bfc_ouptput_exe(FILE *ofp){
     // DOS Header
     ofs += fwrite(&ImageDosHeader,      1, sizeof(ImageDosHeader), ofp);
 //  ofs += fwrite(&DosCodeBuffer,       1, sizeof(DosCodeBuffer), ofp);
-    ofs += fwrite(NullBuffer,           1, ImageDosHeader.e_lfanew - ofs, ofp);
+    ofs += fwrite_byte(0x00,            ImageDosHeader.e_lfanew - ofs, ofp);
     // PE Header
     ofs += fwrite(&ImagePeHeader,       1, sizeof(ImagePeHeader), ofp);
     // Section Header
     ofs += fwrite(&CodeSectionHeader,   1, sizeof(CodeSectionHeader), ofp);
     ofs += fwrite(&ImptSectionHeader,   1, sizeof(ImptSectionHeader), ofp);
     ofs += fwrite(&DataSectionHeader,   1, sizeof(DataSectionHeader), ofp);
-    ofs += fwrite(NullBuffer,           1, HEADER_SIZE - ofs, ofp);
+    ofs += fwrite_byte(0x00,            HEADER_SIZE - ofs, ofp);
 
     // Code Section
     ofs += fwrite(NativeBuffer,         1, sizeof(NativeBuffer), ofp);
     if(BFCode.size() > 0)
     ofs += fwrite(&(BFCode[0]),         1, BFCode.size(), ofp);
-    ofs += fwrite(NullBuffer,           1, align(ofs, FILEALIGNSIZE) - ofs, ofp);
+    ofs += fwrite_byte(0x00,            align(ofs, FILEALIGNSIZE) - ofs, ofp);
 
     // Import Section
     ofs += fwrite(ImportDesc,           1, size_ImportDesc, ofp);
     ofs += fwrite(LookupTable,          1, size_LookupTable, ofp);  // import name table
     ofs += fwrite(LookupTable,          1, size_LookupTable, ofp);  // import address table
     ofs += fwrite(&(HintTable[0]),      1, HintTable.size(), ofp);
-    ofs += fwrite(NullBuffer,           1, align(ofs, FILEALIGNSIZE) - ofs, ofp);
+    ofs += fwrite_byte(0x00,            align(ofs, FILEALIGNSIZE) - ofs, ofp);
 
     // Data Section
     if(size_datasec_file){
-        ofs += fwrite(InitBuffer,           1, sizeof(InitBuffer), ofp);
-        ofs += fwrite(NullBuffer,           1, align(ofs, FILEALIGNSIZE) - ofs, ofp);
+    ofs += fwrite(InitBuffer,           1, sizeof(InitBuffer), ofp);
+    ofs += fwrite_byte(0x00,            align(ofs, FILEALIGNSIZE) - ofs, ofp);
     }
 
     return 0;
@@ -423,11 +520,13 @@ int bfc(const char *ifn, const char *ofn){
     FILE *ofp = NULL;
 
     ifp = fopen(ifn, "rb");
-    ofp = fopen(ofn, "wb");
-    if(!ifp || !ofp) goto end;
-
-    bfc_compile(ifp);
-    bfc_ouptput_exe(ofp);
+    if(!ifp) goto end;
+    int len = bfc_compile(ifp);
+    if(len){
+        ofp = fopen(ofn, "wb");
+        if(!ofp) goto end;
+        bfc_ouptput_exe(ofp);
+    }
 
 end:
     if(ifp) fclose(ifp);
